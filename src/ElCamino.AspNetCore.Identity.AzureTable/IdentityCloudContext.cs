@@ -26,7 +26,32 @@ namespace ElCamino.AspNetCore.Identity.AzureTable
         protected virtual void Initialize(IdentityConfiguration config)
         {
             _config = config;
-            _client = new TableServiceClient(_config.StorageConnectionString);
+
+            if (string.IsNullOrEmpty(_config.StorageConnectionString) && _config.StorageConnectionUri == null)
+            {
+                throw new ArgumentNullException(nameof(config.StorageConnectionString), "Either StorageConnectionString or StorageConnectionUri are required");
+            }
+            else if (!string.IsNullOrEmpty(_config.StorageConnectionString))
+            {
+                _client = new TableServiceClient(_config.StorageConnectionString);
+
+                if (_config.TokenCredential != null)
+                {
+                    //If we've been passed a TokenCredential we can use that instead of the credentials in the connection string
+                    _client = new TableServiceClient(_client.Uri, _config.TokenCredential);
+                }
+            }
+            else if (_config.StorageConnectionUri != null)
+            {
+                if (config.TokenCredential == null)
+                {
+                    throw new ArgumentNullException(nameof(config.TokenCredential), "TokenCredential is required when Uri is specified");
+                }
+                else
+                {
+                    _client = new TableServiceClient(_client.Uri, config.TokenCredential);
+                }
+            }
 
             _indexTable = _client.GetTableClient(FormatTableNameWithPrefix(!string.IsNullOrWhiteSpace(_config.IndexTableName) ? _config.IndexTableName : TableConstants.TableNames.IndexTable));
             _roleTable = _client.GetTableClient(FormatTableNameWithPrefix(!string.IsNullOrWhiteSpace(_config.RoleTableName) ? _config.RoleTableName : TableConstants.TableNames.RolesTable));
